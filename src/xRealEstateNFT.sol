@@ -144,6 +144,7 @@ contract xRealEstateNFT is
     function issue(address to, uint64 subscriptionId, uint32 gasLimit, bytes32 donID)
         external
         onlyOwner
+        onlyOnArbitrumSepolia
         returns (bytes32 requestId)
     {
         if (s_lastRequestId != bytes32(0)) revert LatestIssueInProgress();
