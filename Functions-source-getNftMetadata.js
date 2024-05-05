@@ -1,4 +1,4 @@
-const { ethers } = await import("npm:ethers@6.10.0"); // Import ethers.js v6.10.0
+const { ethers } = await import('npm:ethers@6.10.0');
 
 const abiCoder = ethers.AbiCoder.defaultAbiCoder();
 
@@ -10,6 +10,6 @@ const realEstateAddress = apiResponse.data.UnparsedAddress;
 const yearBuilt = Number(apiResponse.data.YearBuilt);
 const lotSizeSquareFeet = Number(apiResponse.data.LotSizeSquareFeet);
 
-const encoded = abiCoder.encode(["string", "uint256", "uint256"], [realEstateAddress, yearBuilt, lotSizeSquareFeet]);
+const encoded = abiCoder.encode([`string`, `uint256`, `uint256`], [realEstateAddress, yearBuilt, lotSizeSquareFeet]);
 
 return ethers.getBytes(encoded);
