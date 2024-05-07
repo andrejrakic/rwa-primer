@@ -29,8 +29,8 @@ const requestConfig = {
     // Code language (only JavaScript is currently supported)
     codeLanguage: CodeLanguage.JavaScript,
     // String containing the source code to be executed
-    source: fs.readFileSync("./Functions-source-getNftMetadata.js").toString(),
-    // source: fs.readFileSync("./Functions-source-getPrices.js").toString(),
+    //source: fs.readFileSync("./Functions-source-getNftMetadata.js").toString(),
+    source: fs.readFileSync("./Functions-source-getPrices.js").toString(),
 
     // Secrets can be accessed within the source code with `secrets.varName` (ie: secrets.apiKey). The secrets object can only contain string values.
     secrets: {},

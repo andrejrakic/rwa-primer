@@ -12,6 +12,10 @@ const listPrice = Number(apiResponse.data.ListPrice);
 const originalListPrice = Number(apiResponse.data.OriginalListPrice);
 const taxAssessedValue = Number(apiResponse.data.TaxAssessedValue);
 
+console.log(`List Price: ${listPrice}`);
+console.log(`Original List Price: ${originalListPrice}`);
+console.log(`Tax Assessed Value: ${taxAssessedValue}`);
+
 const encoded = abiCoder.encode([`uint256`, `uint256`, `uint256`, `uint256`], [tokenId, listPrice, originalListPrice, taxAssessedValue]);
 
 return ethers.getBytes(encoded);
