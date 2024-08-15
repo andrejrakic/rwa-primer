@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.0;
 
 /**
  * THIS IS AN EXAMPLE CONTRACT THAT USES HARDCODED VALUES FOR CLARITY.
  * THIS IS AN EXAMPLE CONTRACT THAT USES UN-AUDITED CODE.
  * DO NOT USE THIS CODE IN PRODUCTION.
  */
-contract FunctionsSource {
+abstract contract FunctionsSource {
     string public getNftMetadata = "const { ethers } = await import('npm:ethers@6.10.0');"
         "const abiCoder = ethers.AbiCoder.defaultAbiCoder();" "const apiResponse = await Functions.makeHttpRequest({"
         "    url: `https://api.bridgedataoutput.com/api/v2/OData/test/Property('P_5dba1fb94aa4055b9f29696f')?access_token=6baca547742c6f96a6ff71b138424f21`,"

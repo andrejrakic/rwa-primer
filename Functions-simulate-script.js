@@ -7,8 +7,6 @@ async function main() {
     console.log(responseBytesHexstring);
     console.log(errorString)
     console.log(capturedTerminalOutput);
-
-    console.log(761167 * 100001272);
 }
 
 // node Functions-simulate-script.js

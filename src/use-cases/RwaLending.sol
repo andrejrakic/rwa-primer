@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.20;
+pragma solidity 0.8.24;
 
-import {xRealEstateNFT} from "./xRealEstateNFT.sol";
-import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+import {RealEstateToken} from "../RealEstateToken.sol";
+import {IERC1155Receiver, IERC165} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {OwnerIsCreator} from "@chainlink/contracts-ccip/src/v0.8/shared/access/OwnerIsCreator.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -15,16 +15,16 @@ import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interf
  * THIS IS AN EXAMPLE CONTRACT THAT USES UN-AUDITED CODE.
  * DO NOT USE THIS CODE IN PRODUCTION.
  */
-contract RwaLending is IERC721Receiver, OwnerIsCreator, ReentrancyGuard {
+contract RwaLending is IERC1155Receiver, OwnerIsCreator, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     struct LoanDetails {
-        address borrower;
+        uint256 erc1155AmountSupplied;
         uint256 usdcAmountLoaned;
         uint256 usdcLiquidationThreshold;
     }
 
-    xRealEstateNFT internal immutable i_xRealEstateNft;
+    RealEstateToken internal immutable i_realEstateToken;
     address internal immutable i_usdc;
     AggregatorV3Interface internal s_usdcUsdAggregator;
     uint32 internal s_usdcUsdFeedHeartbeat;
@@ -35,27 +35,30 @@ contract RwaLending is IERC721Receiver, OwnerIsCreator, ReentrancyGuard {
     uint256 internal immutable i_ltvInitialThreshold;
     uint256 internal immutable i_ltvLiquidationThreshold;
 
-    mapping(uint256 tokenId => LoanDetails) internal s_activeLoans;
+    mapping(uint256 tokenId => mapping(address borrower => LoanDetails)) internal s_activeLoans;
 
-    event Borrow(uint256 indexed tokenId, uint256 indexed loanAmount, uint256 indexed liquidationThreshold);
-    event BorrowRepayed(uint256 indexed tokenId);
+    event Borrow(
+        uint256 indexed tokenId, uint256 amount, uint256 indexed loanAmount, uint256 indexed liquidationThreshold
+    );
+    event BorrowRepayed(uint256 indexed tokenId, uint256 indexed amount);
     event Liquidated(uint256 indexed tokenId);
 
-    error OnlyXRealEstateNftSupported();
+    error AlreadyBorrowed(address borrower, uint256 tokenId);
+    error OnlyRealEstateTokenSupported();
     error InvalidValuation();
     error SlippageToleranceExceeded();
     error PriceFeedDdosed();
     error InvalidRoundId();
     error StalePriceFeed();
-    error OnlyBorrowerCanCall();
+    error NothingToRepay();
 
     constructor(
-        address xRealEstateNftAddress,
+        address realEstateTokenAddress,
         address usdc,
         address usdcUsdAggregatorAddress,
         uint32 usdcUsdFeedHeartbeat
     ) {
-        i_xRealEstateNft = xRealEstateNFT(xRealEstateNftAddress);
+        i_realEstateToken = RealEstateToken(realEstateTokenAddress);
         i_usdc = usdc;
         s_usdcUsdAggregator = AggregatorV3Interface(usdcUsdAggregatorAddress);
         s_usdcUsdFeedHeartbeat = usdcUsdFeedHeartbeat;
@@ -68,8 +71,16 @@ contract RwaLending is IERC721Receiver, OwnerIsCreator, ReentrancyGuard {
         i_ltvLiquidationThreshold = 75;
     }
 
-    function borrow(uint256 tokenId, uint256 minLoanAmount, uint256 maxLiquidationThreshold) external nonReentrant {
-        uint256 normalizedValuation = getValuationInUsdc(tokenId);
+    function borrow(
+        uint256 tokenId,
+        uint256 amount,
+        bytes memory data,
+        uint256 minLoanAmount,
+        uint256 maxLiquidationThreshold
+    ) external nonReentrant {
+        if (s_activeLoans[tokenId][msg.sender].usdcAmountLoaned != 0) revert AlreadyBorrowed(msg.sender, tokenId);
+
+        uint256 normalizedValuation = getValuationInUsdc(tokenId) * amount / i_realEstateToken.totalSupply(tokenId);
 
         if (normalizedValuation == 0) revert InvalidValuation();
 
@@ -81,39 +92,42 @@ contract RwaLending is IERC721Receiver, OwnerIsCreator, ReentrancyGuard {
             revert SlippageToleranceExceeded();
         }
 
-        i_xRealEstateNft.safeTransferFrom(msg.sender, address(this), tokenId);
+        i_realEstateToken.safeTransferFrom(msg.sender, address(this), tokenId, amount, data);
 
-        s_activeLoans[tokenId] = LoanDetails({
-            borrower: msg.sender,
+        s_activeLoans[tokenId][msg.sender] = LoanDetails({
+            erc1155AmountSupplied: amount,
             usdcAmountLoaned: loanAmount,
             usdcLiquidationThreshold: liquidationThreshold
         });
 
         IERC20(i_usdc).safeTransfer(msg.sender, loanAmount);
 
-        emit Borrow(tokenId, loanAmount, liquidationThreshold);
+        emit Borrow(tokenId, amount, loanAmount, liquidationThreshold);
     }
 
     function repay(uint256 tokenId) external nonReentrant {
-        LoanDetails memory loanDetails = s_activeLoans[tokenId];
-        if (msg.sender != loanDetails.borrower) revert OnlyBorrowerCanCall();
+        LoanDetails memory loanDetails = s_activeLoans[tokenId][msg.sender];
+        if (loanDetails.usdcAmountLoaned == 0) revert NothingToRepay();
 
-        delete s_activeLoans[tokenId];
+        delete s_activeLoans[tokenId][msg.sender];
 
         IERC20(i_usdc).safeTransferFrom(msg.sender, address(this), loanDetails.usdcAmountLoaned);
 
-        i_xRealEstateNft.safeTransferFrom(address(this), msg.sender, tokenId);
+        i_realEstateToken.safeTransferFrom(address(this), msg.sender, tokenId, loanDetails.erc1155AmountSupplied, "");
 
-        emit BorrowRepayed(tokenId);
+        emit BorrowRepayed(tokenId, loanDetails.erc1155AmountSupplied);
     }
 
-    function liquidate(uint256 tokenId) external {
-        uint256 normalizedValuation = getValuationInUsdc(tokenId);
+    function liquidate(uint256 tokenId, address borrower) external {
+        LoanDetails memory loanDetails = s_activeLoans[tokenId][borrower];
+
+        uint256 normalizedValuation =
+            getValuationInUsdc(tokenId) * loanDetails.erc1155AmountSupplied / i_realEstateToken.totalSupply(tokenId);
         if (normalizedValuation == 0) revert InvalidValuation();
 
         uint256 liquidationThreshold = (normalizedValuation * i_ltvLiquidationThreshold) / 100;
-        if (liquidationThreshold < s_activeLoans[tokenId].usdcLiquidationThreshold) {
-            delete s_activeLoans[tokenId];
+        if (liquidationThreshold < loanDetails.usdcLiquidationThreshold) {
+            delete s_activeLoans[tokenId][borrower];
         }
     }
 
@@ -146,7 +160,7 @@ contract RwaLending is IERC721Receiver, OwnerIsCreator, ReentrancyGuard {
     }
 
     function getValuationInUsdc(uint256 tokenId) public view returns (uint256) {
-        xRealEstateNFT.PriceDetails memory priceDetails = i_xRealEstateNft.getPriceDetails(tokenId);
+        RealEstateToken.PriceDetails memory priceDetails = i_realEstateToken.getPriceDetails(tokenId);
 
         uint256 valuation = (
             i_weightListPrice * priceDetails.listPrice + i_weightOriginalListPrice * priceDetails.originalListPrice
@@ -171,15 +185,35 @@ contract RwaLending is IERC721Receiver, OwnerIsCreator, ReentrancyGuard {
         s_usdcUsdFeedHeartbeat = usdcUsdFeedHeartbeat;
     }
 
-    function onERC721Received(address operator, address from, uint256 tokenId, bytes calldata data)
-        external
-        nonReentrant
-        returns (bytes4)
-    {
-        if (msg.sender != address(i_xRealEstateNft)) {
-            revert OnlyXRealEstateNftSupported();
+    function onERC1155Received(
+        address, /*operator*/
+        address, /*from*/
+        uint256, /*id*/
+        uint256, /*value*/
+        bytes calldata /*data*/
+    ) external nonReentrant returns (bytes4) {
+        if (msg.sender != address(i_realEstateToken)) {
+            revert OnlyRealEstateTokenSupported();
         }
 
-        return IERC721Receiver.onERC721Received.selector;
+        return IERC1155Receiver.onERC1155Received.selector;
+    }
+
+    function onERC1155BatchReceived(
+        address, /*operator*/
+        address, /*from*/
+        uint256[] calldata, /*ids*/
+        uint256[] calldata, /*values*/
+        bytes calldata /*data*/
+    ) external view returns (bytes4) {
+        if (msg.sender != address(i_realEstateToken)) {
+            revert OnlyRealEstateTokenSupported();
+        }
+
+        return IERC1155Receiver.onERC1155BatchReceived.selector;
+    }
+
+    function supportsInterface(bytes4 interfaceId) public view virtual override(IERC165) returns (bool) {
+        return interfaceId == type(IERC1155Receiver).interfaceId || interfaceId == type(IERC165).interfaceId;
     }
 }
