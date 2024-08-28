@@ -30,32 +30,54 @@ contract Issuer is FunctionsClient, FunctionsSource, OwnerIsCreator {
 
     mapping(bytes32 requestId => FractionalizedNft) internal s_issuesInProgress;
 
-    constructor(address realEstateToken, address functionsRouterAddress) FunctionsClient(functionsRouterAddress) {
+    constructor(
+        address realEstateToken,
+        address functionsRouterAddress
+    ) FunctionsClient(functionsRouterAddress) {
         i_realEstateToken = RealEstateToken(realEstateToken);
     }
 
-    function issue(address to, uint256 amount, uint64 subscriptionId, uint32 gasLimit, bytes32 donID)
-        external
-        onlyOwner
-        returns (bytes32 requestId)
-    {
+    function issue(
+        address to,
+        uint256 amount,
+        uint64 subscriptionId,
+        uint32 gasLimit,
+        bytes32 donID
+    ) external onlyOwner returns (bytes32 requestId) {
         if (s_lastRequestId != bytes32(0)) revert LatestIssueInProgress();
 
         FunctionsRequest.Request memory req;
         req.initializeRequestForInlineJavaScript(this.getNftMetadata());
-        requestId = _sendRequest(req.encodeCBOR(), subscriptionId, gasLimit, donID);
+        requestId = _sendRequest(
+            req.encodeCBOR(),
+            subscriptionId,
+            gasLimit,
+            donID
+        );
 
         s_issuesInProgress[requestId] = FractionalizedNft(to, amount);
     }
 
-    function fulfillRequest(bytes32 requestId, bytes memory response, bytes memory err) internal override {
+    function fulfillRequest(
+        bytes32 requestId,
+        bytes memory response,
+        bytes memory err
+    ) internal override {
         if (err.length != 0) {
             revert(string(err));
         }
 
         if (s_lastRequestId == requestId) {
-            (string memory realEstateAddress, uint256 yearBuilt, uint256 lotSizeSquareFeet) =
-                abi.decode(response, (string, uint256, uint256));
+            (
+                string memory realEstateAddress,
+                uint256 yearBuilt,
+                uint256 lotSizeSquareFeet,
+                uint256 livingArea,
+                uint256 bedroomsTotal
+            ) = abi.decode(
+                    response,
+                    (string, uint256, uint256, uint256, uint256)
+                );
 
             uint256 tokenId = s_nextTokenId++;
 
@@ -65,7 +87,8 @@ contract Issuer is FunctionsClient, FunctionsSource, OwnerIsCreator {
                         abi.encodePacked(
                             '{"name": "Cross Chain Tokenized Real Estate",'
                             '"description": "Cross Chain Tokenized Real Estate",',
-                            '"image": "",' '"attributes": [',
+                            '"image": "",'
+                            '"attributes": [',
                             '{"trait_type": "realEstateAddress",',
                             '"value": ',
                             realEstateAddress,
@@ -78,15 +101,33 @@ contract Issuer is FunctionsClient, FunctionsSource, OwnerIsCreator {
                             '"value": ',
                             lotSizeSquareFeet,
                             "}",
+                            '{"trait_type": "livingArea",',
+                            '"value": ',
+                            livingArea,
+                            "}",
+                            '{"trait_type": "bedroomsTotal",',
+                            '"value": ',
+                            bedroomsTotal,
+                            "}",
                             "]}"
                         )
                     )
                 )
             );
-            string memory finalTokenURI = string(abi.encodePacked("data:application/json;base64,", uri));
+            string memory finalTokenURI = string(
+                abi.encodePacked("data:application/json;base64,", uri)
+            );
 
-            FractionalizedNft memory fractionalizedNft = s_issuesInProgress[requestId];
-            i_realEstateToken.mint(fractionalizedNft.to, tokenId, fractionalizedNft.amount, "", finalTokenURI);
+            FractionalizedNft memory fractionalizedNft = s_issuesInProgress[
+                requestId
+            ];
+            i_realEstateToken.mint(
+                fractionalizedNft.to,
+                tokenId,
+                fractionalizedNft.amount,
+                "",
+                finalTokenURI
+            );
 
             s_lastRequestId = bytes32(0);
         }

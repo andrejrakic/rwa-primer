@@ -18,7 +18,7 @@ abstract contract FunctionsSource {
         "const lotSizeSquareFeet = Number(apiResponse.data.LotSizeSquareFeet);"
         "const livingArea = Number(apiResponse.data.LivingArea);"
         "const bedroomsTotal = Number(apiResponse.data.BedroomsTotal);"
-        "const encoded = abiCoder.encode([`string`, `uint256`, `uint256`], [realEstateAddress, yearBuilt, lotSizeSquareFeet, livingArea, bedroomsTotal]);"
+        "const encoded = abiCoder.encode([`string`, `uint256`, `uint256`, `uint256`, `uint256`], [realEstateAddress, yearBuilt, lotSizeSquareFeet, livingArea, bedroomsTotal]);"
         "return ethers.getBytes(encoded);";
 
     string public getPrices =
