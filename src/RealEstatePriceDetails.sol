@@ -24,11 +24,11 @@ contract RealEstatePriceDetails is FunctionsClient, FunctionsSource, OwnerIsCrea
 
     mapping(uint256 tokenId => PriceDetails) internal s_priceDetails;
 
-    error OnlyAutomationForwarderCanCall();
+    error OnlyAutomationForwarderOrOwnerCanCall();
 
-    modifier onlyAutomationForwarder() {
-        if (msg.sender != s_automationForwarderAddress) {
-            revert OnlyAutomationForwarderCanCall();
+    modifier onlyAutomationForwarderOrOwner() {
+        if (msg.sender != s_automationForwarderAddress && msg.sender != owner()) {
+            revert OnlyAutomationForwarderOrOwnerCanCall();
         }
         _;
     }
@@ -39,16 +39,18 @@ contract RealEstatePriceDetails is FunctionsClient, FunctionsSource, OwnerIsCrea
         s_automationForwarderAddress = automationForwarderAddress;
     }
 
-    function updatePriceDetails(uint256 tokenId, uint64 subscriptionId, uint32 gasLimit, bytes32 donID)
+    function updatePriceDetails(string memory tokenId, uint64 subscriptionId, uint32 gasLimit, bytes32 donID)
         external
-        onlyAutomationForwarder
+        onlyAutomationForwarderOrOwner
         returns (bytes32 requestId)
     {
         FunctionsRequest.Request memory req;
         req.initializeRequestForInlineJavaScript(this.getPrices());
 
         string[] memory args = new string[](1);
-        args[0] = string(abi.encode(tokenId));
+        args[0] = tokenId;
+
+        req.setArgs(args);
 
         requestId = _sendRequest(req.encodeCBOR(), subscriptionId, gasLimit, donID);
     }

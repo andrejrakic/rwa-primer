@@ -20,8 +20,8 @@ contract ERC1155Core is ERC1155Supply, OwnerIsCreator {
     error ERC1155Core_CallerIsNotIssuerOrItself(address msgSender);
 
     modifier onlyIssuerOrItself() {
-        if (_msgSender() != address(this) || _msgSender() != s_issuer) {
-            revert ERC1155Core_CallerIsNotIssuerOrItself(_msgSender());
+        if (msg.sender != address(this) && msg.sender != s_issuer) {
+            revert ERC1155Core_CallerIsNotIssuerOrItself(msg.sender);
         }
         _;
     }
@@ -40,7 +40,7 @@ contract ERC1155Core is ERC1155Supply, OwnerIsCreator {
         onlyIssuerOrItself
     {
         _mint(_to, _id, _amount, _data);
-        _setURI(_id, _tokenUri);
+        _tokenURIs[_id] = _tokenUri;
     }
 
     function mintBatch(
@@ -52,7 +52,7 @@ contract ERC1155Core is ERC1155Supply, OwnerIsCreator {
     ) public onlyIssuerOrItself {
         _mintBatch(_to, _ids, _amounts, _data);
         for (uint256 i = 0; i < _ids.length; ++i) {
-            _setURI(_ids[i], _tokenUris[i]);
+            _tokenURIs[_ids[i]] = _tokenUris[i];
         }
     }
 
