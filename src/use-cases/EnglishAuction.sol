@@ -109,7 +109,7 @@ contract EnglishAuction is IERC1155Receiver, ReentrancyGuard {
         uint256, /*id*/
         uint256, /*value*/
         bytes calldata /*data*/
-    ) external nonReentrant returns (bytes4) {
+    ) external view returns (bytes4) {
         if (msg.sender != address(i_fractionalizedRealEstateToken)) {
             revert OnlyRealEstateTokenSupported();
         }
