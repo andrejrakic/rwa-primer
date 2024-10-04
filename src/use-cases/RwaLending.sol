@@ -9,6 +9,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
+import {USDtoUSDCLibrary} from "../utils/USDtoUSDCLibrary.sol";
 
 /**
  * THIS IS AN EXAMPLE CONTRACT THAT USES HARDCODED VALUES FOR CLARITY.
@@ -172,7 +173,7 @@ contract RwaLending is IERC1155Receiver, OwnerIsCreator, ReentrancyGuard {
         uint256 feedDecimals = s_usdcUsdAggregator.decimals();
         uint256 usdcDecimals = 6; // USDC uses 6 decimals
 
-        uint256 normalizedValuation = Math.mulDiv((valuation * usdcPriceInUsd), 10 ** usdcDecimals, 10 ** feedDecimals); // Adjust the valuation from USD (Chainlink 1e8) to USDC (1e6)
+        uint256 normalizedValuation = USDtoUSDCLibrary.convert(valuation, usdcPriceInUsd, usdcDecimals, feedDecimals); // Adjust the valuation from USD (Chainlink 1e8) to USDC (1e6)
 
         return normalizedValuation;
     }
